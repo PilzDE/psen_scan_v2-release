@@ -2,6 +2,21 @@
 Changelog for package psen_scan_v2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2021-06-29)
+------------------
+* Set prefix for node name (same value as for tf frames)
+* Introduce bringup.launch for starting only the scanner node
+* Omit closing the data client before destruction. Fixes #212
+* Distance value at angle_end is now included in the scan range
+* Default scan range changed to [-137.4..137.4]deg at 0.1 deg resolution
+* Add options for modifying resolution and enabling intensities
+* Add launchfile option for disabling rviz at startup (default: enable)
+* Handle the infinity codes from the scanner correctly
+* Inform user about current scan range
+* Fix wrong behavior when angle_start and angle_end are equal
+* Contributors: Pilz GmbH and Co. KG
+
+
 0.2.1 (2021-04-19)
 ------------------
 * Fix issues with smaller angle ranges than default range (`#183 <https://github.com/PilzDE/psen_scan_v2/issues/183>`_)
