@@ -49,6 +49,8 @@ static constexpr uint32_t ONLINE_WORKING_MODE{ 0x00 };
 static constexpr uint32_t GUI_MONITORING_TRANSACTION{ 0x05 };
 static constexpr uint16_t NUMBER_OF_BYTES_SCAN_COUNTER{ 4 };
 static constexpr uint16_t NUMBER_OF_BYTES_SINGLE_MEASUREMENT{ 2 };
+static constexpr uint16_t NO_SIGNAL_ARRIVED{ 59956 };
+static constexpr uint16_t SIGNAL_TOO_LATE{ 59958 };
 static constexpr uint16_t NUMBER_OF_BYTES_SINGLE_INTENSITY{ 2 };
 
 /**
@@ -141,7 +143,7 @@ std::vector<diagnostic::Message> deserializeMessages(std::istringstream& is);
 }
 
 /**
- * @brief Error indicating a problem during the extraction of the measurement data.
+ * @brief Exception thrown on problems during the extraction of the measurement data.
  */
 class DecodingFailure : public std::runtime_error
 {
@@ -150,7 +152,7 @@ public:
 };
 
 /**
- * @brief Error indicating a problem with the additional field: scan_counter
+ * @brief Exception thrown on problems with the additional field: scan_counter
  *
  * The length specified in the Header of the additional field "scan_counter"
  * must be exactly as defined in NUMBER_OF_BYTES_SCAN_COUNTER for it to be converted.
