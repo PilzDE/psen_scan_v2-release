@@ -213,7 +213,9 @@ public:  // Definition of state machine via table
       a_irow < WaitForMonitoringFrame,    e::MonitoringFrameTimeout,                                &m::handleMonitoringFrameTimeout                          >,
       a_row  < WaitForStartReply,         e::StopRequest,               WaitForStopReply,           &m::sendStopRequest                                       >,
       a_row  < WaitForMonitoringFrame,    e::StopRequest,               WaitForStopReply,           &m::sendStopRequest                                       >,
-      g_row  < WaitForStopReply,          e::RawReplyReceived,          Stopped,                                                  &m::isStopReply             >
+      _irow  < WaitForStopReply,          e::RawMonitoringFrameReceived                                                                                       >,
+      g_row  < WaitForStopReply,          e::RawReplyReceived,          Stopped,                                                  &m::isStopReply             >,
+      _irow  < Stopped,                   e::RawMonitoringFrameReceived                                                                                       >
       //  +------------------------------+----------------------------+--------------------------+--------------------------------+-----------------------------+
       > {};
   // clang-format on
@@ -221,7 +223,7 @@ public:  // Definition of state machine via table
 private:
   // LCOV_EXCL_START
   /**
-   * @brief This error is thrown when something goes wrong with the scanner reply.
+   * @brief Exception thrown when something goes wrong with the scanner reply.
    *
    * For example an unexpected code in reply, request refused by device or unknown operation result code.
    */
