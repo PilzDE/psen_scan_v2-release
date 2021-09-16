@@ -141,10 +141,11 @@ inline void ScannerProtocolDef::handleMonitoringFrame(const scanner_events::RawM
 
   try
   {
-    const data_conversion_layer::monitoring_frame::Message frame{ data_conversion_layer::monitoring_frame::deserialize(
-        event.data_, event.num_bytes_) };
-    checkForDiagnosticErrors(frame);
-    informUserAboutTheScanData(frame);
+    const data_conversion_layer::monitoring_frame::Message msg{ data_conversion_layer::monitoring_frame::deserialize(
+        *(event.data_), event.num_bytes_) };
+    checkForDiagnosticErrors(msg);
+    const data_conversion_layer::monitoring_frame::MessageStamped stamped_msg{ msg, event.timestamp_ };
+    informUserAboutTheScanData(stamped_msg);
   }
   // LCOV_EXCL_START
   catch (const data_conversion_layer::monitoring_frame::ScanCounterMissing& e)
@@ -154,21 +155,21 @@ inline void ScannerProtocolDef::handleMonitoringFrame(const scanner_events::RawM
   // LCOV_EXCL_STOP
 }
 
-inline void ScannerProtocolDef::checkForDiagnosticErrors(const data_conversion_layer::monitoring_frame::Message& frame)
+inline void ScannerProtocolDef::checkForDiagnosticErrors(const data_conversion_layer::monitoring_frame::Message& msg)
 {
-  if (!frame.diagnosticMessages().empty())
+  if (!msg.diagnosticMessages().empty())
   {
     PSENSCAN_WARN_THROTTLE(
-        1 /* sec */, "StateMachine", "The scanner reports an error: {}", util::formatRange(frame.diagnosticMessages()));
+        1 /* sec */, "StateMachine", "The scanner reports an error: {}", util::formatRange(msg.diagnosticMessages()));
   }
 }
 
-inline void
-ScannerProtocolDef::informUserAboutTheScanData(const data_conversion_layer::monitoring_frame::Message& frame)
+inline void ScannerProtocolDef::informUserAboutTheScanData(
+    const data_conversion_layer::monitoring_frame::MessageStamped& stamped_msg)
 {
   try
   {
-    scan_buffer_.add(frame);
+    scan_buffer_.add(stamped_msg);
     if (!args_->config_.fragmentedScansEnabled() && scan_buffer_.isRoundComplete())
     {
       sendMessageWithMeasurements(scan_buffer_.getMsgs());
@@ -180,18 +181,18 @@ ScannerProtocolDef::informUserAboutTheScanData(const data_conversion_layer::moni
   }
   if (args_->config_.fragmentedScansEnabled())  // Send the scan fragment in any case.
   {
-    sendMessageWithMeasurements({ frame });
+    sendMessageWithMeasurements({ stamped_msg });
   }
 }
 
 inline void ScannerProtocolDef::sendMessageWithMeasurements(
-    const std::vector<data_conversion_layer::monitoring_frame::Message>& frames)
+    const std::vector<data_conversion_layer::monitoring_frame::MessageStamped>& stamped_msgs)
 {
-  if (framesContainMeasurements(frames))
+  if (framesContainMeasurements(stamped_msgs))
   {
     try
     {
-      args_->inform_user_about_laser_scan_cb(data_conversion_layer::LaserScanConverter::toLaserScan(frames));
+      args_->inform_user_about_laser_scan_cb(data_conversion_layer::LaserScanConverter::toLaserScan(stamped_msgs));
     }
     // LCOV_EXCL_START
     catch (const data_conversion_layer::ScannerProtocolViolationError& ex)
@@ -203,9 +204,11 @@ inline void ScannerProtocolDef::sendMessageWithMeasurements(
 }
 
 inline bool ScannerProtocolDef::framesContainMeasurements(
-    const std::vector<data_conversion_layer::monitoring_frame::Message>& frames)
+    const std::vector<data_conversion_layer::monitoring_frame::MessageStamped>& stamped_msgs)
 {
-  if (std::all_of(frames.begin(), frames.end(), [](const auto& frame) { return frame.measurements().empty(); }))
+  if (std::all_of(stamped_msgs.begin(), stamped_msgs.end(), [](const auto& stamped_msg) {
+        return stamped_msg.msg_.measurements().empty();
+      }))
   {
     PSENSCAN_DEBUG("StateMachine", "No measurement data in current monitoring frame(s), skipping laser scan callback.");
     return false;
@@ -255,7 +258,7 @@ inline void ScannerProtocolDef::checkForInternalErrors(const data_conversion_lay
 inline bool ScannerProtocolDef::isStartReply(scanner_events::RawReplyReceived const& reply_event)
 {
   const data_conversion_layer::scanner_reply::Message msg{ data_conversion_layer::scanner_reply::deserialize(
-      reply_event.data_) };
+      *(reply_event.data_)) };
   checkForInternalErrors(msg);
   return msg.type() == data_conversion_layer::scanner_reply::Message::Type::start;
 }
@@ -263,7 +266,7 @@ inline bool ScannerProtocolDef::isStartReply(scanner_events::RawReplyReceived co
 inline bool ScannerProtocolDef::isStopReply(scanner_events::RawReplyReceived const& reply_event)
 {
   const data_conversion_layer::scanner_reply::Message msg{ data_conversion_layer::scanner_reply::deserialize(
-      reply_event.data_) };
+      *(reply_event.data_)) };
   checkForInternalErrors(msg);
   return msg.type() == data_conversion_layer::scanner_reply::Message::Type::stop;
 }
