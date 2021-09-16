@@ -42,6 +42,7 @@
 #include "psen_scan_v2_standalone/scanner_configuration.h"
 #include "psen_scan_v2_standalone/scanner_v2.h"
 #include "psen_scan_v2_standalone/util/async_barrier.h"
+#include "psen_scan_v2_standalone/util/timestamp.h"
 
 namespace psen_scan_v2_standalone_test
 {
@@ -332,13 +333,15 @@ TEST_F(ScannerAPITests, LaserScanShouldContainAllInfosTransferedByMonitoringFram
   setUpStrictScannerMock();
   prepareScannerMockStartReply();
 
-  const data_conversion_layer::monitoring_frame::Message msg{ createValidMonitoringFrameMsg() };
+  const auto msg{ createValidMonitoringFrameMsg() };
+  const auto timestamp{ util::getCurrentTime() };
+  const auto scan{ createReferenceScan({ msg }, timestamp) };
 
   util::Barrier monitoring_frame_barrier;
   util::Barrier diagnostic_barrier;
 
-  // Check that toLaserScan({msg}) == arg
-  EXPECT_CALL(user_callbacks_, LaserScanCallback(data_conversion_layer::LaserScanConverter::toLaserScan({ msg })))
+  EXPECT_CALL(user_callbacks_,
+              LaserScanCallback(AllOf(ScanDataEqual(scan), TimestampInExpectedTimeframe(scan, timestamp))))
       .WillOnce(OpenBarrier(&monitoring_frame_barrier));
 
   EXPECT_LOG_SHORT(WARN,
@@ -366,14 +369,14 @@ TEST_F(ScannerAPITests, shouldCallLaserScanCBOnlyOneTimeWithAllInformationWhenUn
   setUpNiceScannerMock();
   prepareScannerMockStartReply();
 
-  std::vector<psen_scan_v2_standalone::data_conversion_layer::monitoring_frame::Message> msgs =
-      createMonitoringFrameMsgsForScanRound(2, 6);
+  const auto msgs{ createMonitoringFrameMsgsForScanRound(2, 6) };
+  const auto timestamp{ util::getCurrentTime() };
+  const auto scan{ createReferenceScan(msgs, timestamp) };
 
   util::Barrier monitoring_frame_barrier;
 
-  // Check that toLaserScan({msg}) == arg
-  EXPECT_CALL(user_callbacks_, LaserScanCallback(data_conversion_layer::LaserScanConverter::toLaserScan(msgs)))
-      .Times(1)
+  EXPECT_CALL(user_callbacks_,
+              LaserScanCallback(AllOf(ScanDataEqual(scan), TimestampInExpectedTimeframe(scan, timestamp))))
       .WillOnce(OpenBarrier(&monitoring_frame_barrier));
 
   nice_scanner_mock_->startListeningForControlMsg();
@@ -403,12 +406,13 @@ TEST_F(ScannerAPITests, shouldShowOneUserMsgIfFirstTwoScanRoundsStartEarly)
       createMonitoringFrameMsgsForScanRound(3, 5);
   std::vector<psen_scan_v2_standalone::data_conversion_layer::monitoring_frame::Message> valid_round =
       createMonitoringFrameMsgsForScanRound(4, 6);
+  const auto timestamp{ util::getCurrentTime() };
+  const auto scan{ createReferenceScan(valid_round, timestamp) };
 
   util::Barrier monitoring_frame_barrier;
 
-  // Check that toLaserScan({msg}) == arg
-  EXPECT_CALL(user_callbacks_, LaserScanCallback(data_conversion_layer::LaserScanConverter::toLaserScan(valid_round)))
-      .Times(1)
+  EXPECT_CALL(user_callbacks_,
+              LaserScanCallback(AllOf(ScanDataEqual(scan), TimestampInExpectedTimeframe(scan, timestamp))))
       .WillOnce(OpenBarrier(&monitoring_frame_barrier));
 
   util::Barrier user_msg_barrier;
@@ -432,7 +436,8 @@ TEST_F(ScannerAPITests, shouldShowOneUserMsgIfFirstTwoScanRoundsStartEarly)
   }
 
   EXPECT_TRUE(monitoring_frame_barrier.waitTillRelease(DEFAULT_TIMEOUT)) << "Monitoring frame not received";
-  EXPECT_TRUE(user_msg_barrier.waitTillRelease(DEFAULT_TIMEOUT)) << "Monitoring frame of new scan round not recognized";
+  EXPECT_TRUE(user_msg_barrier.waitTillRelease(DEFAULT_TIMEOUT))
+      << "Monitoring frame of new scan round not recognized ";
   REMOVE_LOG_MOCK
 }
 
@@ -447,12 +452,13 @@ TEST_F(ScannerAPITests, shouldIgnoreMonitoringFrameOfFormerScanRound)
 
   auto msg_round2 = createValidMonitoringFrameMsg(2);
   auto msgs_round3 = createMonitoringFrameMsgsForScanRound(3, 6);
+  const auto timestamp{ util::getCurrentTime() };
+  const auto scan{ createReferenceScan(msgs_round3, timestamp) };
 
   util::Barrier monitoring_frame_barrier;
 
-  // Check that toLaserScan({msg}) == arg
-  EXPECT_CALL(user_callbacks_, LaserScanCallback(data_conversion_layer::LaserScanConverter::toLaserScan(msgs_round3)))
-      .Times(1)
+  EXPECT_CALL(user_callbacks_,
+              LaserScanCallback(AllOf(ScanDataEqual(scan), TimestampInExpectedTimeframe(scan, timestamp))))
       .WillOnce(OpenBarrier(&monitoring_frame_barrier));
 
   util::Barrier user_msg_barrier;
@@ -589,7 +595,7 @@ TEST_F(ScannerAPITests, shouldShowUserMsgIfMonitoringFramesAreMissing)
   {
     nice_scanner_mock_->sendMonitoringFrame(msg);
     // Sleep to ensure that message are not sent too fast which might cause messages overwrite in socket buffer
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(10ms);
   }
 
   // Send MonitoringFrames of invalid scan round
@@ -597,7 +603,7 @@ TEST_F(ScannerAPITests, shouldShowUserMsgIfMonitoringFramesAreMissing)
   {
     nice_scanner_mock_->sendMonitoringFrame(msg);
     // Sleep to ensure that message are not sent too fast which might cause messages overwrite in socket buffer
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(10ms);
   }
 
   EXPECT_TRUE(user_msg_barrier.waitTillRelease(DEFAULT_TIMEOUT)) << "User message not received";
@@ -635,7 +641,7 @@ TEST_F(ScannerAPITests, shouldShowUserMsgIfTooManyMonitoringFramesAreReceived)
   {
     nice_scanner_mock_->sendMonitoringFrame(msg);
     // Sleep to ensure that message are not sent too fast which might cause messages overwrite in socket buffer
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(10ms);
   }
 
   EXPECT_TRUE(user_msg_barrier.waitTillRelease(DEFAULT_TIMEOUT)) << "User message not received";
