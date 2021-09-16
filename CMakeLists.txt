@@ -22,6 +22,10 @@ add_compile_options(-Wextra)
 add_compile_options(-Wno-unused-parameter)
 add_compile_options(-Werror)
 
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
 find_package(catkin REQUIRED COMPONENTS
   rosconsole_bridge
   roscpp
@@ -259,6 +263,7 @@ if(CATKIN_ENABLE_TESTING)
   )
   target_link_libraries(unittest_laserscan
     ${catkin_LIBRARIES}
+    fmt::fmt
   )
 
   catkin_add_gtest(unittest_laserscan_conversions
@@ -299,6 +304,16 @@ if(CATKIN_ENABLE_TESTING)
     standalone/src/data_conversion_layer/monitoring_frame_deserialization.cpp
   )
   target_link_libraries(unittest_monitoring_frame_msg
+    ${catkin_LIBRARIES}
+    fmt::fmt
+  )
+
+  catkin_add_gtest(unittest_monitoring_frame_msg_stamped
+    standalone/test/unit_tests/data_conversion_layer/unittest_monitoring_frame_msg_stamped.cpp
+    standalone/src/data_conversion_layer/monitoring_frame_msg.cpp
+    standalone/src/data_conversion_layer/diagnostics.cpp
+  )
+  target_link_libraries(unittest_monitoring_frame_msg_stamped
     ${catkin_LIBRARIES}
     fmt::fmt
   )
@@ -403,6 +418,17 @@ if(CATKIN_ENABLE_TESTING)
     if(ENABLE_HARDWARE_TESTING_WITH_REFERENCE_SCAN)
       find_package(rosbag REQUIRED)
 
+      catkin_add_gtest(hwtest_scan_compare_standalone
+        test/hw_tests/hwtest_scan_compare_standalone.cpp
+        standalone/src/laserscan.cpp
+      )
+      target_link_libraries(hwtest_scan_compare_standalone
+        ${catkin_LIBRARIES}
+        ${PROJECT_NAME}_standalone
+        ${rosbag_LIBRARIES}
+        fmt::fmt
+      )
+
       add_rostest_gtest(hwtest_scan_compare
           test/hw_tests/hwtest_scan_compare.test
           test/hw_tests/hwtest_scan_compare.cpp
@@ -426,6 +452,8 @@ if(CATKIN_ENABLE_TESTING)
       ARGS config:=with_intensities.yaml)
     add_rostest(test/hw_tests/hwtest_scan_range.test
       ARGS config:=big_resolution.yaml)
+
+    add_rostest(test/hw_tests/hwtest_timestamp.test)
   endif()
 
 
