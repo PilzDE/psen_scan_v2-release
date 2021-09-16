@@ -16,15 +16,16 @@
 #ifndef PSEN_SCAN_V2_STANDALONE_LASERSCAN_H
 #define PSEN_SCAN_V2_STANDALONE_LASERSCAN_H
 
-#include <vector>
 #include <cstdint>
+#include <ostream>
+#include <vector>
 
 #include "psen_scan_v2_standalone/util/tenth_of_degree.h"
 
 namespace psen_scan_v2_standalone
 {
 /**
- *  @brief This class represents a single laser scan in the \<prefix\>_scan target frame.
+ *  @brief This class represents a single laser scan in the \<tf_prefix\> target frame.
  *
  * All relevant information about a single scan of a psen_scan scanner are stored in this class.
  * This includes the following information:
@@ -33,8 +34,10 @@ namespace psen_scan_v2_standalone
  * - Normalized intensities of the signals.
  * - Resolution of the scan in radians.
  * - Min and Max angle in radians.
+ * - Counter of scan round.
+ * - Time of the first scan ray.
  *
- * The measures use the target frame defined as \<prefix\>_scan.
+ * The measures use the target frame defined as \<tf_prefix\>.
  * @see https://github.com/PilzDE/psen_scan_v2_standalone/blob/main/README.md#tf-frames
  */
 class LaserScan
@@ -46,12 +49,16 @@ public:
 public:
   LaserScan(const util::TenthOfDegree& resolution,
             const util::TenthOfDegree& min_scan_angle,
-            const util::TenthOfDegree& max_scan_angle);
+            const util::TenthOfDegree& max_scan_angle,
+            const uint32_t scan_counter,
+            const int64_t timestamp);
 
 public:
   const util::TenthOfDegree& getScanResolution() const;
   const util::TenthOfDegree& getMinScanAngle() const;
   const util::TenthOfDegree& getMaxScanAngle() const;
+  uint32_t getScanCounter() const;
+  int64_t getTimestamp() const;
 
   const MeasurementData& getMeasurements() const;
   MeasurementData& getMeasurements();
@@ -59,8 +66,6 @@ public:
 
   const IntensityData& getIntensities() const;
   void setIntensities(const IntensityData&);
-
-  bool operator==(const LaserScan& scan) const;
 
 private:
   //! Measurement data of the laserscan (in Millimeters).
@@ -73,7 +78,13 @@ private:
   const util::TenthOfDegree min_scan_angle_;
   //! Highest angle the scanner is scanning (in radian).
   const util::TenthOfDegree max_scan_angle_;
+  //! Number of the scan round this data belongs to.
+  const uint32_t scan_counter_;
+  //! Time of the first ray in this scan round (or fragment if fragmented_scans is enabled).
+  const int64_t timestamp_;
 };
+
+std::ostream& operator<<(std::ostream& os, const LaserScan& scan);
 
 }  // namespace psen_scan_v2_standalone
 
