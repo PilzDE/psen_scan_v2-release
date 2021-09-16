@@ -2,6 +2,19 @@
 Changelog for package psen_scan_v2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.2 (2021-09-16)
+------------------
+* Improve performance of standalone part
+    * Introduce RawDataPtr
+    * Write to std::stringstream instead of constructing from std::string
+    * Pass by reference wherever possible
+* Make release build the default
+* Calculate timestamp as the time of the first ray (udp communication time is neglected)
+* API: Add timestamp (nanoseconds since epoch) to LaserScan
+* API: Add scan counter to LaserScan
+* API: remove LaserScan equality operator
+* Contributors: Pilz GmbH and Co. KG
+
 0.3.1 (2021-07-21)
 ------------------
 * Rename urdf links
