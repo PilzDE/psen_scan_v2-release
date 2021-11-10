@@ -31,7 +31,6 @@
 #include "psen_scan_v2_standalone/util/tenth_of_degree.h"
 #include "psen_scan_v2_standalone/laserscan.h"
 #include "psen_scan_v2_standalone/scan_range.h"
-#include "psen_scan_v2_standalone/util/timestamp.h"
 
 namespace psen_scan_v2_standalone_test
 {
@@ -73,11 +72,12 @@ static std::vector<double> generateIntensities(const unsigned int& num_elements,
 static data_conversion_layer::monitoring_frame::Message
 createValidMonitoringFrameMsg(const uint32_t scan_counter = 42,
                               const util::TenthOfDegree start_angle = DEFAULT_SCAN_RANGE.getStart(),
-                              const util::TenthOfDegree end_angle = DEFAULT_SCAN_RANGE.getEnd())
+                              const util::TenthOfDegree end_angle = DEFAULT_SCAN_RANGE.getEnd(),
+                              const uint8_t active_zoneset = 1)
 {
   const auto resolution{ util::TenthOfDegree(10) };
 
-  const unsigned int num_elements = (end_angle - start_angle) / resolution;
+  const unsigned int num_elements = ((end_angle - start_angle) / resolution).value();
   const double lowest_measurement{ 0. };
   const double highest_measurement{ 10. };
   const std::vector<double> measurements{ generateMeasurements(num_elements, lowest_measurement, highest_measurement) };
@@ -91,10 +91,16 @@ createValidMonitoringFrameMsg(const uint32_t scan_counter = 42,
   };
 
   return data_conversion_layer::monitoring_frame::Message(
-      start_angle, resolution, scan_counter, measurements, intensities, diagnostic_messages);
+      start_angle, resolution, scan_counter, active_zoneset, measurements, intensities, diagnostic_messages);
 }
 
-static std::vector<data_conversion_layer::monitoring_frame::Message>
+static data_conversion_layer::monitoring_frame::Message
+createValidMonitoringFrameMsgWithZoneset(const uint8_t active_zoneset)
+{
+  return createValidMonitoringFrameMsg(42, DEFAULT_SCAN_RANGE.getStart(), DEFAULT_SCAN_RANGE.getEnd(), active_zoneset);
+}
+
+std::vector<data_conversion_layer::monitoring_frame::Message>
 createValidMonitoringFrameMsgs(const uint32_t scan_counter, const std::size_t num_elements)
 {
   std::vector<data_conversion_layer::monitoring_frame::Message> msgs;
@@ -103,7 +109,7 @@ createValidMonitoringFrameMsgs(const uint32_t scan_counter, const std::size_t nu
   return msgs;
 }
 
-static std::vector<data_conversion_layer::monitoring_frame::Message>
+std::vector<data_conversion_layer::monitoring_frame::Message>
 createMonitoringFrameMsgsForScanRound(const uint32_t scan_counter, const std::size_t num_elements)
 {
   std::vector<data_conversion_layer::monitoring_frame::Message> msgs;
@@ -128,42 +134,10 @@ stampMonitoringFrameMsgs(const std::vector<data_conversion_layer::monitoring_fra
   return stamped_msgs;
 }
 
-static LaserScan createReferenceScan(const std::vector<data_conversion_layer::monitoring_frame::Message>& msgs,
-                                     int64_t reference_timestamp)
+LaserScan createReferenceScan(const std::vector<data_conversion_layer::monitoring_frame::Message>& msgs,
+                              int64_t reference_timestamp)
 {
   return data_conversion_layer::LaserScanConverter::toLaserScan(stampMonitoringFrameMsgs(msgs, reference_timestamp));
-}
-
-ACTION_P(OpenBarrier, barrier)
-{
-  barrier->release();
-}
-
-using namespace ::testing;
-
-MATCHER_P(PointwiseDoubleEq, vec, "")
-{
-  return std::equal(vec.begin(), vec.end(), arg.begin(), arg.end(), [](const double& a, const double& b) {
-    return Matches(DoubleEq(b))(a);
-  });
-}
-
-MATCHER_P(ScanDataEqual, scan, "")
-{
-  return arg.getScanCounter() == scan.getScanCounter() && arg.getScanResolution() == scan.getScanResolution() &&
-         arg.getMinScanAngle() == scan.getMinScanAngle() && arg.getMaxScanAngle() == scan.getMaxScanAngle() &&
-         Matches(PointwiseDoubleEq(scan.getMeasurements()))(arg.getMeasurements()) &&
-         Matches(PointwiseDoubleEq(scan.getIntensities()))(arg.getIntensities());
-}
-
-using namespace ::testing;
-
-MATCHER_P2(TimestampInExpectedTimeframe, reference_scan, reference_timestamp, "")
-{
-  const int64_t elapsed_time{ util::getCurrentTime() - reference_timestamp };
-  *result_listener << "where the elapsed time is " << elapsed_time << " nsec";
-  return arg.getTimestamp() > reference_scan.getTimestamp() &&
-         arg.getTimestamp() < (reference_scan.getTimestamp() + elapsed_time);
 }
 
 }  // namespace psen_scan_v2_standalone_test
