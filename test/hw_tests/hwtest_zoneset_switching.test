@@ -16,12 +16,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
 <launch>
+  <node pkg="sainsmart_relay_usb" type="relay_node" name="sainsmart_relay_node" />
+
   <include file="$(find psen_scan_v2)/launch/bringup.launch">
+    <arg name="angle_start" value="-1.2" />
+    <arg name="angle_end" value="1.2" />
     <arg name="sensor_ip" value="$(optenv SENSOR_IP 192.168.0.10)" />
     <arg name="host_ip" value="$(optenv HOST_IP auto)" />
-    <arg name="host_udp_port_data" value="55007" />
+    <arg name="host_udp_port_data" value="55008" />
   </include>
 
-  <test test-name="timestamp" pkg="psen_scan_v2" type="hwtest_timestamp.py">
-  </test>
+  <test test-name="zoneset_switching" pkg="psen_scan_v2" type="hwtest_zoneset_switching" />
+
 </launch>
