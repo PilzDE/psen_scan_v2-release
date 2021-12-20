@@ -89,11 +89,11 @@ private:
   FRIEND_TEST(RosScannerNodeTests, shouldPublishScansWhenLaserScanCallbackIsInvoked);
   FRIEND_TEST(RosScannerNodeTests, shouldPublishActiveZonesetWhenLaserScanCallbackIsInvoked);
   FRIEND_TEST(RosScannerNodeTests, shouldWaitWhenStopRequestResponseIsMissing);
-  FRIEND_TEST(RosScannerNodeTests, shouldReceiveLatchedActiveZonesetMsg);
   FRIEND_TEST(RosScannerNodeTests, shouldProvideScanTopic);
   FRIEND_TEST(RosScannerNodeTests, shouldProvideActiveZonesetTopic);
+  FRIEND_TEST(RosScannerNodeTests, shouldPublishScanEqualToConversionOfSuppliedLaserScan);
   FRIEND_TEST(RosScannerNodeTests, shouldThrowExceptionSetInScannerStartFuture);
-  FRIEND_TEST(RosScannerNodeTests, shouldThrowDelayedExceptionSetInScannerStartFuture);
+  FRIEND_TEST(RosScannerNodeTests, shouldThrowExceptionSetInScannerStopFuture);
 };
 
 typedef ROSScannerNodeT<> ROSScannerNode;
@@ -110,7 +110,7 @@ ROSScannerNodeT<S>::ROSScannerNodeT(ros::NodeHandle& nh,
   , scanner_(scanner_config, std::bind(&ROSScannerNodeT<S>::laserScanCallback, this, std::placeholders::_1))
 {
   pub_scan_ = nh_.advertise<sensor_msgs::LaserScan>(topic, 1);
-  pub_zone_ = nh_.advertise<std_msgs::UInt8>("active_zoneset", 1, true);
+  pub_zone_ = nh_.advertise<std_msgs::UInt8>("active_zoneset", 1);
 }
 
 template <typename S>
@@ -118,15 +118,15 @@ void ROSScannerNodeT<S>::laserScanCallback(const LaserScan& scan)
 {
   try
   {
-    const auto laserScanMsg = toLaserScanMsg(scan, tf_prefix_, x_axis_rotation_);
+    const auto laser_scan_msg = toLaserScanMsg(scan, tf_prefix_, x_axis_rotation_);
     PSENSCAN_INFO_ONCE(
         "ScannerNode",
         "Publishing laser scan with angle_min={:.1f} angle_max={:.1f} angle_increment={:.1f} degrees. {} angle values.",
-        data_conversion_layer::radianToDegree(laserScanMsg.angle_min),
-        data_conversion_layer::radianToDegree(laserScanMsg.angle_max),
-        data_conversion_layer::radianToDegree(laserScanMsg.angle_increment),
-        laserScanMsg.ranges.size());
-    pub_scan_.publish(laserScanMsg);
+        data_conversion_layer::radianToDegree(laser_scan_msg.angle_min),
+        data_conversion_layer::radianToDegree(laser_scan_msg.angle_max),
+        data_conversion_layer::radianToDegree(laser_scan_msg.angle_increment),
+        laser_scan_msg.ranges.size());
+    pub_scan_.publish(laser_scan_msg);
     std_msgs::UInt8 active_zoneset;
     active_zoneset.data = scan.getActiveZoneset();
     pub_zone_.publish(active_zoneset);
@@ -160,11 +160,12 @@ void ROSScannerNodeT<S>::run()
   {
     r.sleep();  // LCOV_EXCL_LINE can not be reached deterministically
   }
-  const auto stop_future = scanner_.stop();
+  auto stop_future = scanner_.stop();
+
   const auto stop_status = stop_future.wait_for(3s);
-  if (stop_status == std::future_status::timeout)
+  if (stop_status == std::future_status::ready)
   {
-    ROS_ERROR("Scanner did not finish properly");
+    stop_future.get();  // Throws std::runtime_error if stop not successful
   }
 }
 
