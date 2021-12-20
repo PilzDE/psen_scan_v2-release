@@ -50,6 +50,9 @@ public:
    *
    * @note expects all monitoring frames to have the same resolution.
    *
+   * @throws data_conversion_layer::monitoring_frame::AdditionalFieldMissing if measurements, scan_counter or
+   * active_zoneset are not set in one of the stamped_msgs.
+   *
    * @see data_conversion_layer::monitoring_frame::Message
    * @see ScannerV2
    */
@@ -102,9 +105,12 @@ inline LaserScan LaserScanConverter::toLaserScan(
     measurements.insert(measurements.end(),
                         stamped_msgs[index].msg_.measurements().begin(),
                         stamped_msgs[index].msg_.measurements().end());
-    intensities.insert(intensities.end(),
-                       stamped_msgs[index].msg_.intensities().begin(),
-                       stamped_msgs[index].msg_.intensities().end());
+    if (stamped_msgs[index].msg_.hasIntensitiesField())
+    {
+      intensities.insert(intensities.end(),
+                         stamped_msgs[index].msg_.intensities().begin(),
+                         stamped_msgs[index].msg_.intensities().end());
+    }
   }
 
   LaserScan scan(stamped_msgs[0].msg_.resolution(),
@@ -214,16 +220,16 @@ inline bool LaserScanConverter::thetaAnglesFitTogether(
     const std::vector<data_conversion_layer::monitoring_frame::MessageStamped>& stamped_msgs,
     const std::vector<int>& sorted_filled_stamped_msgs_indices)
 {
-  util::TenthOfDegree lastEnd = stamped_msgs[sorted_filled_stamped_msgs_indices[0]].msg_.fromTheta();
+  util::TenthOfDegree last_end = stamped_msgs[sorted_filled_stamped_msgs_indices[0]].msg_.fromTheta();
   for (auto index : sorted_filled_stamped_msgs_indices)
   {
     const auto& stamped_msg = stamped_msgs[index];
-    if (lastEnd != stamped_msg.msg_.fromTheta())
+    if (last_end != stamped_msg.msg_.fromTheta())
     {
       return false;
     }
-    lastEnd = stamped_msg.msg_.fromTheta() +
-              stamped_msg.msg_.resolution() * static_cast<int>(stamped_msg.msg_.measurements().size());
+    last_end = stamped_msg.msg_.fromTheta() +
+               stamped_msg.msg_.resolution() * static_cast<int>(stamped_msg.msg_.measurements().size());
   }
   return true;
 }
