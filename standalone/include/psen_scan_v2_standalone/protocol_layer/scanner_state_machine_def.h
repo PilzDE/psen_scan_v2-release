@@ -20,10 +20,11 @@ namespace psen_scan_v2_standalone
 {
 namespace protocol_layer
 {
-inline ScannerProtocolDef::ScannerProtocolDef(const ScannerConfiguration config,
+inline ScannerProtocolDef::ScannerProtocolDef(const ScannerConfiguration& config,
                                               const communication_layer::NewMessageCallback& control_msg_callback,
                                               const communication_layer::ErrorCallback& control_error_callback,
                                               const communication_layer::ErrorCallback& start_error_callback,
+                                              const communication_layer::ErrorCallback& stop_error_callback,
                                               const communication_layer::NewMessageCallback& data_msg_callback,
                                               const communication_layer::ErrorCallback& data_error_callback,
                                               const ScannerStartedCallback& scanner_started_callback,
@@ -45,6 +46,7 @@ inline ScannerProtocolDef::ScannerProtocolDef(const ScannerConfiguration config,
   , scanner_started_callback_(scanner_started_callback)
   , scanner_stopped_callback_(scanner_stopped_callback)
   , start_error_callback_(start_error_callback)
+  , stop_error_callback_(stop_error_callback)
   , inform_user_about_laser_scan_callback_(laser_scan_callback)
   , start_timeout_callback_(start_timeout_callback)
   , monitoring_frame_timeout_callback_(monitoring_frame_timeout_callback)
@@ -79,7 +81,7 @@ DEFAULT_ON_ENTRY_IMPL(Idle)
 
 // \cond Ignore "was not declared or defined" warnings from doxygen
 template <class Event, class FSM>
-void ScannerProtocolDef::Idle::on_exit(Event const&, FSM& fsm)
+void ScannerProtocolDef::Idle::on_exit(Event const& /*unused*/, FSM& fsm)  // NOLINT
 {
   PSENSCAN_DEBUG("StateMachine", "Exiting state: Idle");
   fsm.control_client_.startAsyncReceiving();
@@ -87,7 +89,7 @@ void ScannerProtocolDef::Idle::on_exit(Event const&, FSM& fsm)
 }
 
 template <class Event, class FSM>
-void ScannerProtocolDef::WaitForStartReply::on_entry(Event const&, FSM& fsm)
+void ScannerProtocolDef::WaitForStartReply::on_entry(Event const& /*unused*/, FSM& fsm)  // NOLINT
 {
   PSENSCAN_DEBUG("StateMachine", "Entering state: WaitForStartReply");
   // Start watchdog...
@@ -95,7 +97,7 @@ void ScannerProtocolDef::WaitForStartReply::on_entry(Event const&, FSM& fsm)
 }
 
 template <class Event, class FSM>
-void ScannerProtocolDef::WaitForStartReply::on_exit(Event const&, FSM& fsm)
+void ScannerProtocolDef::WaitForStartReply::on_exit(Event const& /*unused*/, FSM& fsm)  // NOLINT
 {
   PSENSCAN_DEBUG("StateMachine", "Exiting state: WaitForStartReply");
   // Stops the watchdog by resetting the pointer
@@ -103,7 +105,7 @@ void ScannerProtocolDef::WaitForStartReply::on_exit(Event const&, FSM& fsm)
 }
 
 template <class Event, class FSM>
-void ScannerProtocolDef::WaitForMonitoringFrame::on_entry(Event const&, FSM& fsm)
+void ScannerProtocolDef::WaitForMonitoringFrame::on_entry(Event const& /*unused*/, FSM& fsm)  // NOLINT
 {
   PSENSCAN_DEBUG("StateMachine", "Entering state: WaitForMonitoringFrame");
   fsm.scan_buffer_.reset();
@@ -113,7 +115,7 @@ void ScannerProtocolDef::WaitForMonitoringFrame::on_entry(Event const&, FSM& fsm
 }
 
 template <class Event, class FSM>
-void ScannerProtocolDef::WaitForMonitoringFrame::on_exit(Event const&, FSM& fsm)
+void ScannerProtocolDef::WaitForMonitoringFrame::on_exit(Event const& /*unused*/, FSM& fsm)  // NOLINT
 {
   PSENSCAN_DEBUG("StateMachine", "Exiting state: WaitForMonitoringFrame");
   // Stops the watchdog by resetting the pointer
@@ -121,7 +123,7 @@ void ScannerProtocolDef::WaitForMonitoringFrame::on_exit(Event const&, FSM& fsm)
 }
 
 template <class Event, class FSM>
-void ScannerProtocolDef::Stopped::on_entry(Event const&, FSM& fsm)
+void ScannerProtocolDef::Stopped::on_entry(Event const& /*unused*/, FSM& /*unused*/)  // NOLINT
 {
   PSENSCAN_DEBUG("StateMachine", "Entering state: Stopped");
 }
@@ -181,7 +183,7 @@ inline void ScannerProtocolDef::handleMonitoringFrame(const scanner_events::RawM
     informUserAboutTheScanData(stamped_msg);
   }
   // LCOV_EXCL_START
-  catch (const data_conversion_layer::monitoring_frame::ScanCounterMissing& e)
+  catch (const data_conversion_layer::monitoring_frame::AdditionalFieldMissing& e)
   {
     PSENSCAN_ERROR("StateMachine", e.what());
   }
@@ -208,12 +210,24 @@ inline void ScannerProtocolDef::notifyUserAboutUnknownStartReply(scanner_events:
 
 inline void ScannerProtocolDef::notifyUserAboutRefusedStartReply(scanner_events::RawReplyReceived const& reply_event)
 {
-  start_error_callback_("Request refused by device.");
+  start_error_callback_("Start Request refused by device.");
+}
+
+inline void ScannerProtocolDef::notifyUserAboutUnknownStopReply(scanner_events::RawReplyReceived const& reply_event)
+{
+  const data_conversion_layer::scanner_reply::Message msg{ data_conversion_layer::scanner_reply::deserialize(
+      *(reply_event.data_)) };
+  stop_error_callback_(fmt::format("Unknown result code {:#04x} in stop reply.", static_cast<uint32_t>(msg.result())));
+}
+
+inline void ScannerProtocolDef::notifyUserAboutRefusedStopReply(scanner_events::RawReplyReceived const& reply_event)
+{
+  stop_error_callback_("Stop Request refused by device.");
 }
 
 inline void ScannerProtocolDef::checkForDiagnosticErrors(const data_conversion_layer::monitoring_frame::Message& msg)
 {
-  if (!msg.diagnosticMessages().empty())
+  if (msg.hasDiagnosticMessagesField() && !msg.diagnosticMessages().empty())
   {
     PSENSCAN_WARN_THROTTLE(
         1 /* sec */, "StateMachine", "The scanner reports an error: {}", util::formatRange(msg.diagnosticMessages()));
@@ -343,6 +357,27 @@ inline bool ScannerProtocolDef::isRefusedStartReply(scanner_events::RawReplyRece
   return isStartReply(msg) && isRefusedReply(msg);
 }
 
+inline bool ScannerProtocolDef::isAcceptedStopReply(scanner_events::RawReplyReceived const& reply_event)
+{
+  const data_conversion_layer::scanner_reply::Message msg{ data_conversion_layer::scanner_reply::deserialize(
+      *(reply_event.data_)) };
+  return isStopReply(msg) && isAcceptedReply(msg);
+}
+
+inline bool ScannerProtocolDef::isUnknownStopReply(scanner_events::RawReplyReceived const& reply_event)
+{
+  const data_conversion_layer::scanner_reply::Message msg{ data_conversion_layer::scanner_reply::deserialize(
+      *(reply_event.data_)) };
+  return isStopReply(msg) && isUnknownReply(msg);
+}
+
+inline bool ScannerProtocolDef::isRefusedStopReply(scanner_events::RawReplyReceived const& reply_event)
+{
+  const data_conversion_layer::scanner_reply::Message msg{ data_conversion_layer::scanner_reply::deserialize(
+      *(reply_event.data_)) };
+  return isStopReply(msg) && isRefusedReply(msg);
+}
+
 inline bool ScannerProtocolDef::isAcceptedReply(data_conversion_layer::scanner_reply::Message const& msg)
 {
   return msg.result() == data_conversion_layer::scanner_reply::Message::OperationResult::accepted;
@@ -363,11 +398,8 @@ inline bool ScannerProtocolDef::isStartReply(data_conversion_layer::scanner_repl
   return msg.type() == data_conversion_layer::scanner_reply::Message::Type::start;
 }
 
-inline bool ScannerProtocolDef::isStopReply(scanner_events::RawReplyReceived const& reply_event)
+inline bool ScannerProtocolDef::isStopReply(data_conversion_layer::scanner_reply::Message const& msg)
 {
-  const data_conversion_layer::scanner_reply::Message msg{ data_conversion_layer::scanner_reply::deserialize(
-      *(reply_event.data_)) };
-  checkForInternalErrors(msg);
   return msg.type() == data_conversion_layer::scanner_reply::Message::Type::stop;
 }
 
@@ -395,7 +427,7 @@ static std::string classNameShort(const T& t)
 
 // LCOV_EXCL_START
 template <class FSM, class Event>
-void ScannerProtocolDef::exception_caught(Event const& event, FSM& fsm, std::exception& exception)
+void ScannerProtocolDef::exception_caught(Event const& event, FSM& /*unused*/, std::exception& exception)  // NOLINT
 {
   PSENSCAN_ERROR("StateMachine", "Received error \"{}\". Shutting down now.", exception.what());
   sendStopRequest(event);
@@ -404,7 +436,7 @@ void ScannerProtocolDef::exception_caught(Event const& event, FSM& fsm, std::exc
 // LCOV_EXCL_STOP
 
 template <class FSM, class Event>
-void ScannerProtocolDef::no_transition(Event const& event, FSM&, int state)
+void ScannerProtocolDef::no_transition(Event const& event, FSM& /*unused*/, int state)  // NOLINT
 {
   PSENSCAN_WARN("StateMachine",
                 "No transition in state \"{}\" for event \"{}\".",
@@ -413,7 +445,9 @@ void ScannerProtocolDef::no_transition(Event const& event, FSM&, int state)
 }
 
 template <class FSM>
-void ScannerProtocolDef::no_transition(const scanner_events::RawMonitoringFrameReceived&, FSM&, int state)
+void ScannerProtocolDef::no_transition(const scanner_events::RawMonitoringFrameReceived& /*unused*/,  // NOLINT
+                                       FSM& /*unused*/,
+                                       int state)
 {
   PSENSCAN_WARN("StateMachine", "Received monitoring frame despite not waiting for it");
 }
