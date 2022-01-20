@@ -75,7 +75,7 @@ RawData data_conversion_layer::start_request::serialize(const data_conversion_la
   /**< The following 'enable' fields are a 1-byte mask each.
    * Only the last 4 bits (little endian) are used, each of which represents a device.
    * For example, (1000) only enables the Master device, while (1010) enables both the Master
-   * and the second Slave device.
+   * and the second Subscriber device.
    */
 
   const uint8_t device_enabled{ 0b00001000 };
@@ -83,7 +83,7 @@ RawData data_conversion_layer::start_request::serialize(const data_conversion_la
       msg.master_device_settings_.intensitiesEnabled() ? 0b00001000 : 0b00000000) };
   const uint8_t point_in_safety_enabled{ 0 };
   const uint8_t active_zone_set_enabled{ 0b00001000 };
-  const uint8_t io_pin_enabled{ 0 };
+  const uint8_t io_pin_data_enabled{ 0b00001000 };
   const uint8_t scan_counter_enabled{ 0b00001000 };
   const uint8_t speed_encoder_enabled{ 0 }; /**< 0000000bin disabled, 00001111bin enabled.*/
   const uint8_t diagnostics_enabled{ static_cast<uint8_t>(
@@ -93,14 +93,14 @@ RawData data_conversion_layer::start_request::serialize(const data_conversion_la
   raw_processing::write(os, intensity_enabled);
   raw_processing::write(os, point_in_safety_enabled);
   raw_processing::write(os, active_zone_set_enabled);
-  raw_processing::write(os, io_pin_enabled);
+  raw_processing::write(os, io_pin_data_enabled);
   raw_processing::write(os, scan_counter_enabled);
   raw_processing::write(os, speed_encoder_enabled);
   raw_processing::write(os, diagnostics_enabled);
 
-  const auto start = msg.master_.getScanRange().getStart().value();
-  auto end = msg.master_.getScanRange().getEnd().value();
-  const auto resolution = msg.master_.getResolution().value();
+  const auto start = msg.master_.scanRange().start().value();
+  auto end = msg.master_.scanRange().end().value();
+  const auto resolution = msg.master_.resolution().value();
 
   /* In order to get all the data points we want, the scanner needs a value
      that is strictly greater than the end point */
@@ -118,11 +118,12 @@ RawData data_conversion_layer::start_request::serialize(const data_conversion_la
                  end,
                  resolution);
 
-  for (const auto& slave : msg.slaves_)
+  for (const auto& subscriber :
+       msg.subscribers_)  // Note: This refers to the scanner type subscriber, *not* a ros subscriber
   {
-    raw_processing::write(os, slave.getScanRange().getStart().value());
-    raw_processing::write(os, slave.getScanRange().getEnd().value());
-    raw_processing::write(os, slave.getResolution().value());
+    raw_processing::write(os, subscriber.scanRange().start().value());
+    raw_processing::write(os, subscriber.scanRange().end().value());
+    raw_processing::write(os, subscriber.resolution().value());
   }
 
   const std::string raw_data_as_str{ os.str() };
