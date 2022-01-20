@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Pilz GmbH & Co. KG
+// Copyright (c) 2019-2022 Pilz GmbH & Co. KG
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
@@ -18,50 +18,59 @@
 
 #include <gtest/gtest.h>
 
-#include <fmt/format.h>
-#include <fmt/ostream.h>
-
 #include "psen_scan_v2_standalone/configuration/scanner_ids.h"
+#include "psen_scan_v2_standalone/data_conversion_layer/io_pin_data.h"
 #include "psen_scan_v2_standalone/data_conversion_layer/monitoring_frame_msg.h"
 #include "psen_scan_v2_standalone/data_conversion_layer/monitoring_frame_msg_builder.h"
 #include "psen_scan_v2_standalone/util/tenth_of_degree.h"
+#include "psen_scan_v2_standalone/io_state.h"
 
 #include "psen_scan_v2_standalone/util/gtest_expectations.h"
+#include "psen_scan_v2_standalone/util/matchers_and_actions.h"
 
 namespace psen_scan_v2_standalone_test
 {
 using namespace psen_scan_v2_standalone;
 using namespace data_conversion_layer::monitoring_frame;
 
+typedef data_conversion_layer::monitoring_frame::Message FrameMessage;
+
 static const std::string ADDITIONAL_FIELD_MISSING_TEXT = " not set! (Contact PILZ support if the error persists.)";
 
 TEST(MonitoringFrameMsgTest, shouldThrowAdditionalFieldMissingWhenTryingToGetUnsetScanCounter)
 {
   EXPECT_THROW_AND_WHAT(
-      Message().scanCounter(), AdditionalFieldMissing, ("Scan counter" + ADDITIONAL_FIELD_MISSING_TEXT).c_str());
+      FrameMessage().scanCounter(), AdditionalFieldMissing, ("Scan counter" + ADDITIONAL_FIELD_MISSING_TEXT).c_str());
 }
 
 TEST(MonitoringFrameMsgTest, shouldThrowAdditionalFieldMissingWhenTryingToGetUnsetMeasurements)
 {
   EXPECT_THROW_AND_WHAT(
-      Message().measurements(), AdditionalFieldMissing, ("Measurements" + ADDITIONAL_FIELD_MISSING_TEXT).c_str());
+      FrameMessage().measurements(), AdditionalFieldMissing, ("Measurements" + ADDITIONAL_FIELD_MISSING_TEXT).c_str());
 }
 
 TEST(MonitoringFrameMsgTest, shouldThrowAdditionalFieldMissingWhenTryingToGetUnsetIntensities)
 {
   EXPECT_THROW_AND_WHAT(
-      Message().intensities(), AdditionalFieldMissing, ("Intensities" + ADDITIONAL_FIELD_MISSING_TEXT).c_str());
+      FrameMessage().intensities(), AdditionalFieldMissing, ("Intensities" + ADDITIONAL_FIELD_MISSING_TEXT).c_str());
 }
 
 TEST(MonitoringFrameMsgTest, shouldThrowAdditionalFieldMissingWhenTryingToGetUnsetActiveZoneset)
 {
+  EXPECT_THROW_AND_WHAT(FrameMessage().activeZoneset(),
+                        AdditionalFieldMissing,
+                        ("Active zoneset" + ADDITIONAL_FIELD_MISSING_TEXT).c_str());
+}
+
+TEST(MonitoringFrameMsgTest, shouldThrowAdditionalFieldMissingWhenTryingToGetUnsetIOPin)
+{
   EXPECT_THROW_AND_WHAT(
-      Message().activeZoneset(), AdditionalFieldMissing, ("Active zoneset" + ADDITIONAL_FIELD_MISSING_TEXT).c_str());
+      FrameMessage().iOPinData(), AdditionalFieldMissing, ("IO pin data" + ADDITIONAL_FIELD_MISSING_TEXT).c_str());
 }
 
 TEST(MonitoringFrameMsgTest, shouldThrowAdditionalFieldMissingWhenTryingToGetUnsetDiagnosticMessages)
 {
-  EXPECT_THROW_AND_WHAT(Message().diagnosticMessages(),
+  EXPECT_THROW_AND_WHAT(FrameMessage().diagnosticMessages(),
                         AdditionalFieldMissing,
                         ("Diagnostic messages" + ADDITIONAL_FIELD_MISSING_TEXT).c_str());
 }
@@ -96,9 +105,15 @@ TEST(MonitoringFrameMsgTest, shouldReturnCorrectStateOfDiagnosticMessages)
   EXPECT_TRUE(MessageBuilder().diagnosticMessages({}).build().hasDiagnosticMessagesField());
 }
 
+TEST(MonitoringFrameMsgTest, shouldReturnCorrectStateOfIOPin)
+{
+  EXPECT_FALSE(MessageBuilder().build().hasIOPinField());
+  EXPECT_TRUE(MessageBuilder().iOPinData(io::PinData()).build().hasIOPinField());
+}
+
 TEST(MonitoringFrameMsgTest, shouldReturnCorrectScannerId)
 {
-  const auto scanner_id{ configuration::ScannerId::slave0 };
+  const auto scanner_id{ configuration::ScannerId::subscriber0 };
   EXPECT_EQ(scanner_id, MessageBuilder().scannerId(scanner_id).build().scannerId());
 }
 
@@ -146,6 +161,16 @@ TEST(MonitoringFrameMsgTest, shouldReturnCorrectIntensities)
   EXPECT_EQ(expected_intensities, intensities);
 }
 
+TEST(MonitoringFrameMsgTest, shouldReturnCorrectIOPin)
+{
+  io::PinData expected_io_pin_data;
+  expected_io_pin_data.input_state.at(2u).set(5u);
+  expected_io_pin_data.output_state.at(1u).set(3u);
+  io::PinData io_pin_data;
+  ASSERT_NO_THROW(io_pin_data = MessageBuilder().iOPinData(expected_io_pin_data).build().iOPinData());
+  EXPECT_THAT(io_pin_data, IOPinDataEq(expected_io_pin_data));
+}
+
 TEST(MonitoringFrameMsgTest, shouldReturnCorrectDiagnosticMessages)
 {
   const std::vector<diagnostic::Message> expected_diagnostic_messages{ { diagnostic::Message(
@@ -155,41 +180,6 @@ TEST(MonitoringFrameMsgTest, shouldReturnCorrectDiagnosticMessages)
                       MessageBuilder().diagnosticMessages(expected_diagnostic_messages).build().diagnosticMessages());
   EXPECT_EQ(expected_diagnostic_messages, diagnostic_messages);
 }
-
-TEST(MonitoringFrameMsgPrintTest, testPrintMessageSuccessWithAdditionalFields)
-{
-  auto msg = MessageBuilder()
-                 .fromTheta(util::TenthOfDegree(1234))
-                 .resolution(util::TenthOfDegree(56))
-                 .scanCounter(78)
-                 .activeZoneset(2)
-                 .measurements({ 45, 44, 43, 42 })
-                 .intensities({ 1 })
-                 .diagnosticMessages({})
-                 .build();
-
-// For compatibility with different ubuntu versions (resp. fmt), we need to take account of changes in
-// the default formatting of floating point numbers
-#if (FMT_VERSION >= 60000 && FMT_VERSION < 70100)
-  EXPECT_EQ(fmt::format("{}", msg),
-            "monitoring_frame::Message(fromTheta = 123.4 deg, resolution = 5.6 deg, scanCounter = 78, "
-            "active_zoneset = 2, measurements = {45.0, 44.0, 43.0, 42.0}, intensities = {1.0}, diagnostics = {})");
-#else
-  EXPECT_EQ(fmt::format("{}", msg),
-            "monitoring_frame::Message(fromTheta = 123.4 deg, resolution = 5.6 deg, scanCounter = 78, "
-            "active_zoneset = 2, measurements = {45, 44, 43, 42}, intensities = {1}, diagnostics = {})");
-#endif
-}
-
-TEST(MonitoringFrameMsgPrintTest, testPrintMessageSuccessWithoutAdditionalFields)
-{
-  auto msg = MessageBuilder().fromTheta(util::TenthOfDegree(1234)).resolution(util::TenthOfDegree(56)).build();
-
-  EXPECT_EQ(fmt::format("{}", msg),
-            "monitoring_frame::Message(fromTheta = 123.4 deg, resolution = 5.6 deg, scanCounter = _, "
-            "active_zoneset = _, measurements = _, intensities = _, diagnostics = _)");
-}
-
 }  // namespace psen_scan_v2_standalone_test
 
 int main(int argc, char** argv)
