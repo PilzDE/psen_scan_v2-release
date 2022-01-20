@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 Pilz GmbH & Co. KG
+// Copyright (c) 2020-2022 Pilz GmbH & Co. KG
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
@@ -99,6 +99,7 @@ inline LaserScan LaserScanConverter::toLaserScan(
 
   std::vector<double> measurements;
   std::vector<double> intensities;
+  std::vector<IOState> io_states;
 
   for (auto index : sorted_stamped_msgs_indices)
   {
@@ -111,6 +112,10 @@ inline LaserScan LaserScanConverter::toLaserScan(
                          stamped_msgs[index].msg_.intensities().begin(),
                          stamped_msgs[index].msg_.intensities().end());
     }
+    if (stamped_msgs[index].msg_.hasIOPinField())
+    {
+      io_states.emplace_back(stamped_msgs[index].msg_.iOPinData(), stamped_msgs[index].stamp_);
+    }
   }
 
   LaserScan scan(stamped_msgs[0].msg_.resolution(),
@@ -119,8 +124,10 @@ inline LaserScan LaserScanConverter::toLaserScan(
                  stamped_msgs[0].msg_.scanCounter(),
                  stamped_msgs[sorted_stamped_msgs_indices.back()].msg_.activeZoneset(),
                  timestamp);
-  scan.setMeasurements(measurements);
-  scan.setIntensities(intensities);
+
+  scan.measurements(measurements);
+  scan.intensities(intensities);
+  scan.ioStates(io_states);
 
   return scan;
 }

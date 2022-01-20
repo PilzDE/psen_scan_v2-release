@@ -50,6 +50,11 @@ find_package(TinyXML2 REQUIRED)
 
 add_message_files(
   FILES
+  InputPinState.msg
+  InputPinID.msg
+  OutputPinState.msg
+  OutputPinID.msg
+  IOState.msg
   ZoneSet.msg
   ZoneSetConfiguration.msg
 )
@@ -130,6 +135,7 @@ include_directories(
 
 set(${PROJECT_NAME}_standalone_sources
   standalone/src/scanner_v2.cpp
+  standalone/src/io_state.cpp
   standalone/src/laserscan.cpp
   standalone/src/data_conversion_layer/monitoring_frame_msg.cpp
   standalone/src/data_conversion_layer/start_request.cpp
@@ -177,6 +183,10 @@ add_executable(${PROJECT_NAME}_node ${${PROJECT_NAME}_node_sources})
 target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}
   ${PROJECT_NAME}_standalone
+  fmt::fmt
+)
+add_dependencies(${PROJECT_NAME}_node
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
 )
 
 
@@ -329,6 +339,7 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(unittest_laserscan
     standalone/test/unit_tests/api/unittest_laserscan.cpp
+    standalone/src/io_state.cpp
     standalone/src/laserscan.cpp
   )
   target_link_libraries(unittest_laserscan
@@ -336,8 +347,43 @@ if(CATKIN_ENABLE_TESTING)
     fmt::fmt
   )
 
+  catkin_add_gtest(unittest_pin_state
+    standalone/test/unit_tests/api/unittest_pin_state.cpp
+    standalone/src/io_state.cpp
+  )
+  target_link_libraries(unittest_pin_state
+    ${catkin_LIBRARIES}
+    fmt::fmt
+  )
+
+  catkin_add_gtest(unittest_io_state
+    standalone/test/unit_tests/api/unittest_io_state.cpp
+    standalone/src/io_state.cpp
+  )
+  target_link_libraries(unittest_io_state
+    ${catkin_LIBRARIES}
+    fmt::fmt
+  )
+
+  catkin_add_gtest(unittest_io_state_conversions
+    standalone/test/unit_tests/data_conversion_layer/unittest_io_state_conversions.cpp
+    standalone/src/io_state.cpp
+  )
+  target_link_libraries(unittest_io_state_conversions
+    ${catkin_LIBRARIES}
+    fmt::fmt
+  )
+
+  catkin_add_gtest(unittest_io_pin_data
+    standalone/test/unit_tests/data_conversion_layer/unittest_io_pin_data.cpp
+  )
+  target_link_libraries(unittest_io_pin_data
+    ${catkin_LIBRARIES}
+  )
+
   catkin_add_gmock(unittest_laserscan_conversions
     standalone/test/unit_tests/data_conversion_layer/unittest_laserscan_conversions.cpp
+    standalone/src/io_state.cpp
     standalone/src/laserscan.cpp
     standalone/src/data_conversion_layer/monitoring_frame_msg.cpp
     standalone/src/data_conversion_layer/diagnostics.cpp
@@ -349,6 +395,7 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(unittest_laserscan_ros_conversions
     test/unit_tests/unittest_laserscan_ros_conversions.cpp
+    standalone/src/io_state.cpp
     standalone/src/laserscan.cpp
     standalone/src/data_conversion_layer/monitoring_frame_msg.cpp
     standalone/src/data_conversion_layer/diagnostics.cpp
@@ -367,11 +414,12 @@ if(CATKIN_ENABLE_TESTING)
     fmt::fmt
   )
 
-  catkin_add_gtest(unittest_monitoring_frame_msg
+  catkin_add_gmock(unittest_monitoring_frame_msg
     standalone/test/unit_tests/data_conversion_layer/unittest_monitoring_frame_msg.cpp
     standalone/src/data_conversion_layer/monitoring_frame_msg.cpp
     standalone/src/data_conversion_layer/diagnostics.cpp
     standalone/src/data_conversion_layer/monitoring_frame_deserialization.cpp
+    standalone/src/io_state.cpp
   )
   target_link_libraries(unittest_monitoring_frame_msg
     ${catkin_LIBRARIES}
@@ -382,6 +430,7 @@ if(CATKIN_ENABLE_TESTING)
     standalone/test/unit_tests/data_conversion_layer/unittest_monitoring_frame_msg_stamped.cpp
     standalone/src/data_conversion_layer/monitoring_frame_msg.cpp
     standalone/src/data_conversion_layer/diagnostics.cpp
+    standalone/src/io_state.cpp
   )
   target_link_libraries(unittest_monitoring_frame_msg_stamped
     ${catkin_LIBRARIES}
@@ -392,6 +441,7 @@ if(CATKIN_ENABLE_TESTING)
     standalone/src/data_conversion_layer/monitoring_frame_msg.cpp
     standalone/src/data_conversion_layer/monitoring_frame_deserialization.cpp
     standalone/src/data_conversion_layer/diagnostics.cpp
+    standalone/src/io_state.cpp
     standalone/test/unit_tests/data_conversion_layer/unittest_monitoring_frame_serialization_deserialization.cpp
     standalone/test/src/data_conversion_layer/monitoring_frame_serialization.cpp
   )
@@ -445,6 +495,16 @@ if(CATKIN_ENABLE_TESTING)
   )
   add_dependencies(unittest_zone_configuration_ros_conversion ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
+  catkin_add_gmock(unittest_io_state_rosconversions
+    test/unit_tests/unittest_io_state_rosconversions.cpp
+    standalone/src/io_state.cpp
+  )
+  target_link_libraries(unittest_io_state_rosconversions
+    ${catkin_LIBRARIES}
+    fmt::fmt
+  )
+  add_dependencies(unittest_io_state_rosconversions ${${PROJECT_NAME}_EXPORTED_TARGETS})
+
   catkin_add_gmock(unittest_zoneset_to_marker_conversion
     test/unit_tests/unittest_zoneset_to_marker_conversion.cpp
   )
@@ -473,6 +533,7 @@ if(CATKIN_ENABLE_TESTING)
     standalone/test/src/communication_layer/scanner_mock.cpp
     standalone/test/src/data_conversion_layer/monitoring_frame_serialization.cpp
     standalone/src/scanner_v2.cpp
+    standalone/src/io_state.cpp
     standalone/src/laserscan.cpp
     standalone/src/data_conversion_layer/monitoring_frame_msg.cpp
     standalone/src/data_conversion_layer/monitoring_frame_deserialization.cpp
@@ -490,6 +551,7 @@ if(CATKIN_ENABLE_TESTING)
   add_rostest_gmock(integrationtest_ros_scanner_node
     test/integration_tests/integrationtest_ros_scanner_node.test
     test/integration_tests/integrationtest_ros_scanner_node.cpp
+    standalone/src/io_state.cpp
     standalone/src/laserscan.cpp
     standalone/src/data_conversion_layer/monitoring_frame_msg.cpp
     standalone/src/data_conversion_layer/diagnostics.cpp
@@ -497,6 +559,9 @@ if(CATKIN_ENABLE_TESTING)
   target_link_libraries(integrationtest_ros_scanner_node
     ${catkin_LIBRARIES}
     fmt::fmt
+  )
+  add_dependencies(integrationtest_ros_scanner_node
+    ${${PROJECT_NAME}_EXPORTED_TARGETS}
   )
 
   add_rostest_gmock(integrationtest_config_server_node
@@ -569,6 +634,19 @@ if(CATKIN_ENABLE_TESTING)
       test/hw_tests/hwtest_zoneset_switching.test
       test/hw_tests/hwtest_zoneset_switching.cpp
     )
+    add_dependencies(hwtest_zoneset_switching
+      ${PROJECT_NAME}_node
+      ${${PROJECT_NAME}_EXPORTED_TARGETS}
+    )
+
+    add_rostest_gmock(hwtest_io_state
+      test/hw_tests/hwtest_io_state.test
+      test/hw_tests/hwtest_io_state.cpp
+    )
+    add_dependencies(hwtest_io_state
+      ${PROJECT_NAME}_node
+      ${${PROJECT_NAME}_EXPORTED_TARGETS}
+    )
 
   else()
 
@@ -577,13 +655,23 @@ if(CATKIN_ENABLE_TESTING)
                                     EXCLUDE_FROM_ALL)
     add_dependencies(tests hwtest_zoneset_switching)
 
-  endif()
+    catkin_add_executable_with_gmock(hwtest_io_state
+                                    test/hw_tests/hwtest_io_state.cpp
+                                    EXCLUDE_FROM_ALL)
+    add_dependencies(tests hwtest_io_state)
 
+  endif()
 
   target_link_libraries(hwtest_zoneset_switching
     ${catkin_LIBRARIES}
     ${PROJECT_NAME}_standalone
     ${rosbag_LIBRARIES}
+    fmt::fmt
+  )
+
+  target_link_libraries(hwtest_io_state
+    ${catkin_LIBRARIES}
+    ${PROJECT_NAME}_standalone
     fmt::fmt
   )
 
@@ -601,14 +689,12 @@ if(CATKIN_ENABLE_TESTING)
 
     catkin_add_gtest(hwtest_scan_compare_standalone
       test/hw_tests/hwtest_scan_compare_standalone.cpp
-      standalone/src/laserscan.cpp
     )
 
   else()
     # always at least build the test to avoid build breaking changes
     catkin_add_executable_with_gtest(hwtest_scan_compare_standalone
                                             test/hw_tests/hwtest_scan_compare_standalone.cpp
-                                            standalone/src/laserscan.cpp
                                             EXCLUDE_FROM_ALL)
     add_dependencies(tests hwtest_scan_compare_standalone)
 
@@ -631,15 +717,21 @@ if(CATKIN_ENABLE_TESTING)
     add_rostest_gtest(hwtest_scan_compare
       test/hw_tests/hwtest_scan_compare.test
       test/hw_tests/hwtest_scan_compare.cpp
+      standalone/src/io_state.cpp
       standalone/src/laserscan.cpp
+    )
+    add_dependencies(hwtest_scan_compare
+      ${PROJECT_NAME}_node
+      ${${PROJECT_NAME}_EXPORTED_TARGETS}
     )
 
   else()
     # always at least build the test to avoid build breaking changes
     catkin_add_executable_with_gtest(hwtest_scan_compare
-    test/hw_tests/hwtest_scan_compare.cpp
-    standalone/src/laserscan.cpp
-    EXCLUDE_FROM_ALL
+      test/hw_tests/hwtest_scan_compare.cpp
+      standalone/src/io_state.cpp
+      standalone/src/laserscan.cpp
+      EXCLUDE_FROM_ALL
     )
     add_dependencies(tests hwtest_scan_compare)
   endif()
@@ -689,6 +781,11 @@ if(CATKIN_ENABLE_TESTING)
     set(COVERAGE_EXCLUDES "*/${PROJECT_NAME}/standalone/test*"
                           "*/${PROJECT_NAME}/test*"
                           "*/${PROJECT_NAME}/src/psen_scan_driver.cpp"
+                          "*/InputPinID.h" # generated message
+                          "*/InputPinState.h" # generated message
+                          "*/IOState.h" # generated message
+                          "*/OutputPinID.h" # generated message
+                          "*/OutputPinState.h" # generated message
                           "*/ZoneSet.h" # generated message
                           "*/ZoneSetConfiguration.h" # generated message
         )
