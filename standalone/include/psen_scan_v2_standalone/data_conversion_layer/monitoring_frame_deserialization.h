@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 Pilz GmbH & Co. KG
+// Copyright (c) 2020-2022 Pilz GmbH & Co. KG
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
@@ -16,12 +16,18 @@
 #define PSEN_SCAN_V2_STANDALONE_MONITORING_FRAME_DESERIALIZATION_H
 
 #include <istream>
-#include <ostream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#include <bitset>
 
+#include "psen_scan_v2_standalone/configuration/scanner_ids.h"
 #include "psen_scan_v2_standalone/data_conversion_layer/raw_scanner_data.h"
-#include "psen_scan_v2_standalone/data_conversion_layer/raw_processing.h"
+#include "psen_scan_v2_standalone/data_conversion_layer/diagnostics.h"
+#include "psen_scan_v2_standalone/data_conversion_layer/io_pin_data.h"
 #include "psen_scan_v2_standalone/data_conversion_layer/monitoring_frame_msg.h"
-#include "psen_scan_v2_standalone/util/logging.h"
+#include "psen_scan_v2_standalone/data_conversion_layer/raw_processing.h"
+#include "psen_scan_v2_standalone/util/tenth_of_degree.h"
 
 namespace psen_scan_v2_standalone
 {
@@ -128,6 +134,7 @@ private:
 
 enum class AdditionalFieldHeaderID : AdditionalFieldHeader::Id
 {
+  io_pin_data = 0x01,
   scan_counter = 0x02,
   zone_set = 0x03,
   diagnostics = 0x04,
@@ -145,6 +152,20 @@ namespace diagnostic
 std::vector<diagnostic::Message> deserializeMessages(std::istream& is);
 }
 
+namespace io
+{
+template <size_t ChunkSize>
+void deserializePinField(std::istream& is, std::array<std::bitset<8>, ChunkSize>& pin_states)
+{
+  for (auto& byte_states : pin_states)
+  {
+    const auto raw_byte = raw_processing::read<uint8_t>(is);
+    byte_states |= std::bitset<8>(raw_byte);
+  }
+}
+PinData deserializePins(std::istream& is);
+}  // namespace io
+
 /**
  * @brief Exception thrown on problems during the extraction of the measurement data.
  */
@@ -155,46 +176,28 @@ public:
 };
 
 /**
- * @brief Exception thrown on problems with the additional field: scan_counter
+ * @brief Exception thrown on problems with the additional fields with fixed size
  *
- * The length specified in the Header of the additional field "scan_counter"
- * must be exactly as defined in NUMBER_OF_BYTES_SCAN_COUNTER for it to be converted.
- *
- * @see data_conversion_layer::monitoring_frame::AdditionalFieldHeader
- * @see data_conversion_layer::monitoring_frame::AdditionalFieldHeaderID
- * @see data_conversion_layer::monitoring_frame::NUMBER_OF_BYTES_SCAN_COUNTER
- */
-class ScanCounterUnexpectedSize : public DecodingFailure
-{
-public:
-  ScanCounterUnexpectedSize(const std::string& msg);
-};
-
-/**
- * @brief Exception thrown on problems with the additional field: active_zoneset
- *
- * The length specified in the Header of the additional field "active_zoneset"
- * must be exactly as defined in NUMBER_OF_BYTES_ZONE_SET for it to be converted.
+ * The length specified in the Header of the additional fields scan_counter, zone_set and io_state
+ * must be exactly as defined in the protocol.
  *
  * @see data_conversion_layer::monitoring_frame::AdditionalFieldHeader
  * @see data_conversion_layer::monitoring_frame::AdditionalFieldHeaderID
  * @see data_conversion_layer::monitoring_frame::NUMBER_OF_BYTES_ZONE_SET
+ * @see data_conversion_layer::monitoring_frame::NUMBER_OF_BYTES_SCAN_COUNTER
+ * @see data_conversion_layer::monitoring_frame::io::RAW_CHUNK_LENGTH_IN_BYTES
  */
-class ZoneSetUnexpectedSize : public DecodingFailure
+class AdditionalFieldUnexpectedSize : public DecodingFailure
 {
 public:
-  ZoneSetUnexpectedSize(const std::string& msg);
+  AdditionalFieldUnexpectedSize(const std::string& msg);
 };
 
 inline DecodingFailure::DecodingFailure(const std::string& msg) : std::runtime_error(msg)
 {
 }
 
-inline ScanCounterUnexpectedSize::ScanCounterUnexpectedSize(const std::string& msg) : DecodingFailure(msg)
-{
-}
-
-inline ZoneSetUnexpectedSize::ZoneSetUnexpectedSize(const std::string& msg) : DecodingFailure(msg)
+inline AdditionalFieldUnexpectedSize::AdditionalFieldUnexpectedSize(const std::string& msg) : DecodingFailure(msg)
 {
 }
 
