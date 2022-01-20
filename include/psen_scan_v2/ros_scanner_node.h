@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021 Pilz GmbH & Co. KG
+// Copyright (c) 2020-2022 Pilz GmbH & Co. KG
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
@@ -21,6 +21,9 @@
 #include <atomic>
 #include <chrono>
 #include <future>
+#include <algorithm>
+
+#include <fmt/format.h>
 
 #include <gtest/gtest_prod.h>
 
@@ -31,7 +34,9 @@
 #include "psen_scan_v2_standalone/scanner_v2.h"
 
 #include "psen_scan_v2/laserscan_ros_conversions.h"
+#include "psen_scan_v2/io_state_ros_conversion.h"
 #include "psen_scan_v2_standalone/data_conversion_layer/angle_conversions.h"
+#include "psen_scan_v2_standalone/util/format_range.h"
 
 /**
  * @brief Root namespace for the ROS part
@@ -74,15 +79,19 @@ public:
 
 private:
   void laserScanCallback(const LaserScan& scan);
+  void publishChangedIOStates(const std::vector<psen_scan_v2_standalone::IOState>& io_states);
 
 private:
   ros::NodeHandle nh_;
   ros::Publisher pub_scan_;
   ros::Publisher pub_zone_;
+  ros::Publisher pub_io_;
   std::string tf_prefix_;
   double x_axis_rotation_;
   S scanner_;
   std::atomic_bool terminate_{ false };
+
+  psen_scan_v2_standalone::IOState last_io_state_{};
 
   friend class RosScannerNodeTests;
   FRIEND_TEST(RosScannerNodeTests, shouldStartAndStopSuccessfullyIfScannerRespondsToRequests);
@@ -94,6 +103,9 @@ private:
   FRIEND_TEST(RosScannerNodeTests, shouldPublishScanEqualToConversionOfSuppliedLaserScan);
   FRIEND_TEST(RosScannerNodeTests, shouldThrowExceptionSetInScannerStartFuture);
   FRIEND_TEST(RosScannerNodeTests, shouldThrowExceptionSetInScannerStopFuture);
+  FRIEND_TEST(RosScannerNodeTests, shouldPublishChangedIOStatesEqualToConversionOfSuppliedStandaloneIOStates);
+  FRIEND_TEST(RosScannerNodeTests, shouldPublishLatchedOnIOStatesTopic);
+  FRIEND_TEST(RosScannerNodeTests, shouldLogChangedIOStates);
 };
 
 typedef ROSScannerNodeT<> ROSScannerNode;
@@ -111,6 +123,7 @@ ROSScannerNodeT<S>::ROSScannerNodeT(ros::NodeHandle& nh,
 {
   pub_scan_ = nh_.advertise<sensor_msgs::LaserScan>(topic, 1);
   pub_zone_ = nh_.advertise<std_msgs::UInt8>("active_zoneset", 1);
+  pub_io_ = nh_.advertise<psen_scan_v2::IOState>("io_state", 6, true /* latched */);
 }
 
 template <typename S>
@@ -127,9 +140,12 @@ void ROSScannerNodeT<S>::laserScanCallback(const LaserScan& scan)
         data_conversion_layer::radianToDegree(laser_scan_msg.angle_increment),
         laser_scan_msg.ranges.size());
     pub_scan_.publish(laser_scan_msg);
+
     std_msgs::UInt8 active_zoneset;
-    active_zoneset.data = scan.getActiveZoneset();
+    active_zoneset.data = scan.activeZoneset();
     pub_zone_.publish(active_zoneset);
+
+    publishChangedIOStates(scan.ioStates());
   }
   // LCOV_EXCL_START
   catch (const std::invalid_argument& e)
@@ -137,6 +153,24 @@ void ROSScannerNodeT<S>::laserScanCallback(const LaserScan& scan)
     ROS_ERROR_STREAM(e.what());
   }
   // LCOV_EXCL_STOP
+}
+
+template <typename S>
+void ROSScannerNodeT<S>::publishChangedIOStates(const std::vector<psen_scan_v2_standalone::IOState>& io_states)
+{
+  for (const auto& io : io_states)
+  {
+    if (last_io_state_ != io)
+    {
+      pub_io_.publish(toIOStateMsg(io, tf_prefix_));
+
+      PSENSCAN_INFO("RosScannerNode",
+                    "IOs changed, new input: {}, new output: {}",
+                    util::formatRange(io.changedInputStates(last_io_state_), formatPinState),
+                    util::formatRange(io.changedOutputStates(last_io_state_), formatPinState));
+      last_io_state_ = io;
+    }
+  }
 }
 
 template <typename S>

@@ -16,10 +16,13 @@
 #ifndef PSEN_SCAN_V2_STANDALONE_TEST_GTEST_EXPECTATIONS_H
 #define PSEN_SCAN_V2_STANDALONE_TEST_GTEST_EXPECTATIONS_H
 
+#include <algorithm>
 #include <chrono>
 #include <future>
 
 #include <gtest/gtest.h>
+
+#include "psen_scan_v2_standalone/util/format_range.h"
 
 #define ASSERT_FUTURE_IS_READY(future, wait_timeout) ASSERT_EQ(future.wait_for(wait_timeout), std::future_status::ready)
 
@@ -53,5 +56,12 @@
         }                                                                                                              \
       },                                                                                                               \
       expected_exception);
+
+#define EXPECT_BITSETS_EQ(ref_bitset, expected_bitset)                                                                 \
+  ASSERT_EQ(ref_bitset.size(), expected_bitset.size());                                                                \
+  for (std::size_t i = 0; i < ref_bitset.size(); i++)                                                                  \
+  {                                                                                                                    \
+    EXPECT_EQ(ref_bitset[i], expected_bitset[i]);                                                                      \
+  }
 
 #endif  // PSEN_SCAN_V2_STANDALONE_TEST_GTEST_EXPECTATIONS_H
