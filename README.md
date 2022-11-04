@@ -1,3 +1,26 @@
+## psen_scan_v2 (noetic) - 0.10.2-1
+
+The packages in the `psen_scan_v2` repository were released into the `noetic` distro by running `/bin/bloom-release --ros-distro noetic psen_scan_v2` on `Fri, 04 Nov 2022 07:58:05 -0000`
+
+The `psen_scan_v2` package was released.
+
+Version of package(s) in repository `psen_scan_v2`:
+
+- upstream repository: https://github.com/PilzDE/psen_scan_v2.git
+- release repository: https://github.com/PilzDE/psen_scan_v2-release.git
+- rosdistro version: `0.10.1-1`
+- old version: `0.10.1-1`
+- new version: `0.10.2-1`
+
+Versions of tools used:
+
+- bloom version: `0.11.2`
+- catkin_pkg version: `0.5.2`
+- rosdep version: `0.22.1`
+- rosdistro version: `0.9.0`
+- vcstools version: `0.1.42`
+
+
 ## psen_scan_v2 (melodic) - 0.10.2-1
 
 The packages in the `psen_scan_v2` repository were released into the `melodic` distro by running `/bin/bloom-release --ros-distro melodic psen_scan_v2` on `Fri, 04 Nov 2022 07:40:49 -0000`
