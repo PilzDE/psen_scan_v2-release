@@ -91,7 +91,7 @@ _resolution_ (_double_, default: 0.0017 (= 0.1 deg))<br/>
 Scan angle resolution. (Radian) The value is rounded to a multiple of 0.1 deg and has to be in the range [0.1, 10] degrees.
 
 _config_file_ (_string_, default: "")
-Full path to a scanner config file. If a file is provided the configured zonesets and active zone marker are published, see [here](#importing-the-zoneset-configuration) for more information.
+Full path to a scanner config file. If a file is provided the configured zonesets and active zone markers are published, see [here](#importing-the-zoneset-configuration) for more information.
 
 ### Expert Parameters (optional)
 
@@ -128,7 +128,7 @@ Start a preconfigured rviz visualizing the scan data.
 
 * `Hint 1: If no zonesets are configured the driver will publish "0" as default.`
 
-/\<name\>/active_zoneset_marker ([visualization_msgs/Marker][]) <br/>
+/\<name\>/active_zoneset_markers ([visualization_msgs/MarkerArray][]) <br/>
 
 * The markers published represent the currently active zoneset as triangle lists. They can be viewed e.g. in rviz.
 
@@ -169,16 +169,16 @@ The timestamps of the scan data published are computed to be close to reality an
 ### Transferred IOs
 
 The state of inputs and outputs of the PSENscan safety laser scanner are published as 
-([psen_scan_v2/IOState][]). The topic at `/\<name\>/io_states` is latched and always gives 
+[psen_scan_v2/IOState][]. The topic at `/<name>/io_states` is latched and always gives 
 the most recent pin state. On changes at the physical IOs, the changes are logged to
 the console and the new state is published to the topic.
 
-The [input pin state][psen_scan_v2/InputPins] contains information about
+The [input pin states][psen_scan_v2/InputPins] contains information about
 * muting
 * override
 * zone set switching inputs
 
-The [output pin state][psen_scan_v2/OutputPins] consists of
+The [output pin states][psen_scan_v2/OutputPins] consists of
 * OSSD safety states
 * warning output
 * reference points violation
@@ -200,6 +200,13 @@ You can try this out with:
 roslaunch psen_scan_v2 psen_scan_v2.lauch config_file:='full_path_to/example_config.xml'
 ```
 
+```
+WARNING
+There is no verification that the configuration you created using the PSENscan configurator matches the one actually loaded on the PSENscan device!
+
+Please, always make sure to keep those configurations synchronized otherwise the published zoneset polygons might be wrong and cause confusing errors like misleading visualization or navigation results that can not be executed by your real hardware!
+```
+
 If you want to use the configuration node in your launchfile add a section such as:
 
 ```
@@ -210,7 +217,7 @@ If you want to use the configuration node in your launchfile add a section such 
 ```
 
 ### Visualizing the active zoneset
-For visualizing the active zoneset in RViz you can run the `active_zoneset_node`. It will publish markers on the `/<name>/active_zoneset_marker` topic like shown in the RViz screenshot above.
+For visualizing the active zoneset in RViz you can run the `active_zoneset_node`. It will publish markers on the `/<name>/active_zoneset_markers` topic like shown in the RViz screenshot above.
 
 ## Developer Information
 ### Build Status
@@ -275,3 +282,5 @@ supply in buildings.
 [visualization_msgs/Marker]: https://docs.ros.org/en/noetic/api/visualization_msgs/html/msg/Marker.html
 [gmapping]: http://wiki.ros.org/gmapping
 [psen_scan_v2/IOState]: msg/IOState.msg
+[psen_scan_v2/InputPins]: msg/InputPinState.msg
+[psen_scan_v2/OutputPins]: msg/OutputPinState.msg
